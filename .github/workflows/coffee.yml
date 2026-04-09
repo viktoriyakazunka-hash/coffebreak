@@ -17,4 +17,4 @@ jobs:
       - name: Run bot
         env:
           SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
-        run: python bot.py
+        run: node coffee.js
