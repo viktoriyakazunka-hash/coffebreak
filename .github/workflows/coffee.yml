@@ -1,0 +1,20 @@
+name: Random Coffee
+
+on:
+  schedule:
+    - cron: '0 07 * * 1'
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Install deps
+        run: pip install slack_sdk
+
+      - name: Run bot
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+        run: python bot.py
