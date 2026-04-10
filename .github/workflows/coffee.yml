@@ -2,7 +2,7 @@ name: Random Coffee
 
 on:
   schedule:
-    - cron: '0 7 * * 1'
+    - cron: '0 8 * * 1'
 
 jobs:
   run:
@@ -11,10 +11,13 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      - name: Install deps
-        run: pip install slack_sdk
+      - run: npm install
 
-      - name: Run bot
+      - run: node index.js
         env:
           SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
-        run: node coffee.js
+          SLACK_CHANNEL_ID: ${{ secrets.SLACK_CHANNEL_ID }}
+
+          GOOGLE_CLIENT_EMAIL: ${{ secrets.GOOGLE_CLIENT_EMAIL }}
+          GOOGLE_PRIVATE_KEY: ${{ secrets.GOOGLE_PRIVATE_KEY }}
+          GOOGLE_IMPERSONATE_USER: ${{ secrets.GOOGLE_IMPERSONATE_USER }}
