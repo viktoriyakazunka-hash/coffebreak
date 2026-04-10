@@ -1,0 +1,8 @@
+{
+  "name": "random-coffee-bot",
+  "version": "1.0.0",
+  "dependencies": {
+    "@slack/web-api": "^6.9.0",
+    "googleapis": "^126.0.0"
+  }
+}
