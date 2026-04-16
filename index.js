@@ -238,7 +238,8 @@ async function main() {
       type: "section",
       text: {
         type: "mrkdwn",
-        text: `👥 <@${a}> и <@${b}>\n☕ ${meet || "meeting not created"}`
+        text: `Ссылки на встречи: 
+        👥 <@${a}> и <@${b}>\n☕ ${meet || "meeting not created"}`
       }
     });
 
