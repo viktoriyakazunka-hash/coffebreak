@@ -116,8 +116,14 @@ async function createEvent(email1, email2) {
     const event = {
       summary: "☕ Random Coffee",
       description: "Неформальная встреча",
-      start: { dateTime: start.toISOString() },
-      end: { dateTime: end.toISOString() },
+      start: {
+        dateTime: start.toISOString(),
+        timeZone: "Europe/Moscow",
+      },
+      end: {
+        dateTime: end.toISOString(),
+        timeZone: "Europe/Moscow",
+      },
       attendees: [{ email: email1 }, { email: email2 }],
       conferenceData: {
         createRequest: {
@@ -133,13 +139,11 @@ async function createEvent(email1, email2) {
       conferenceDataVersion: 1,
     });
 
-    console.log("EVENT CREATED:", res.data.htmlLink);
-
     return res.data.hangoutLink;
 
   } catch (e) {
     console.error("GOOGLE ERROR:", e.message);
-    return "❌ не удалось создать встречу";
+    return "❌ ошибка создания встречи";
   }
 }
 
