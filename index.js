@@ -141,7 +141,7 @@ async function createEvent(email1, email2) {
 
   } catch (e) {
     console.error("GOOGLE ERROR:", e.message);
-    return "❌ ошибка создания встречи";
+    return null;
   }
 }
 
