@@ -7,7 +7,7 @@ const CHANNEL_ID = process.env.SLACK_CHANNEL_ID;
 
 const HISTORY_FILE = "pairs_history.json";
 
-// ===== GOOGLE =====
+// ================= GOOGLE =================
 const oAuth2Client = new google.auth.OAuth2(
   process.env.GOOGLE_CLIENT_ID,
   process.env.GOOGLE_CLIENT_SECRET
@@ -17,34 +17,35 @@ oAuth2Client.setCredentials(JSON.parse(process.env.GOOGLE_TOKEN));
 
 const calendar = google.calendar({ version: "v3", auth: oAuth2Client });
 
-// ===== HISTORY =====
+// ================= HISTORY =================
 function loadHistory() {
   if (!fs.existsSync(HISTORY_FILE)) return [];
   return JSON.parse(fs.readFileSync(HISTORY_FILE));
 }
 
-function saveHistory(history) {
-  fs.writeFileSync(HISTORY_FILE, JSON.stringify(history, null, 2));
+function saveHistory(data) {
+  fs.writeFileSync(HISTORY_FILE, JSON.stringify(data, null, 2));
 }
 
-// ===== USERS =====
+// ================= USERS =================
 async function getUsers() {
   const res = await slack.conversations.members({ channel: CHANNEL_ID });
+
   const users = [];
 
   for (const id of res.members) {
     const info = await slack.users.info({ user: id });
-    const user = info.user;
+    const u = info.user;
 
-    const status = (user.profile.status_text || "").toLowerCase();
+    const status = (u.profile.status_text || "").toLowerCase();
 
-    const isOnVacation =
+    const isVacation =
       status.includes("vacation") ||
       status.includes("pto") ||
       status.includes("leave") ||
       status.includes("отпуск");
 
-    if (!user.is_bot && !user.deleted && !isOnVacation) {
+    if (!u.is_bot && !u.deleted && !isVacation) {
       users.push(id);
     }
   }
@@ -52,50 +53,49 @@ async function getUsers() {
   return users;
 }
 
-// ===== EMAIL =====
-async function getUserEmail(userId) {
+async function getEmail(userId) {
   const res = await slack.users.info({ user: userId });
   return res.user.profile.email;
 }
 
-// ===== PAIRS =====
-function pairExists(history, u1, u2) {
+// ================= PAIRS =================
+function pairExists(history, a, b) {
   return history.some(
-    ([a, b]) => (a === u1 && b === u2) || (a === u2 && b === u1)
+    ([x, y]) => (x === a && y === b) || (x === b && y === a)
   );
 }
 
 function makePairs(users, history) {
-  let shuffled = [...users].sort(() => 0.5 - Math.random());
+  const shuffled = [...users].sort(() => Math.random() - 0.5);
   const pairs = [];
 
   while (shuffled.length >= 2) {
-    let u1 = shuffled.shift();
+    const u1 = shuffled.shift();
 
-    let index = shuffled.findIndex(u2 => !pairExists(history, u1, u2));
-    if (index === -1) index = 0;
+    let idx = shuffled.findIndex(u2 => !pairExists(history, u1, u2));
+    if (idx === -1) idx = 0;
 
-    let u2 = shuffled.splice(index, 1)[0];
+    const u2 = shuffled.splice(idx, 1)[0];
     pairs.push([u1, u2]);
   }
 
   return pairs;
 }
 
-// ===== TIME =====
+// ================= TIME (FIXED) =================
 function getRandomMeetingTime() {
   const now = new Date();
 
-  const day = now.getDay(); // 0-6
-  const diffToMonday = day === 0 ? -6 : 1 - day;
+  const day = now.getDay(); // 0 = Sunday
+  const diffToMonday = (day + 6) % 7;
 
   const monday = new Date(now);
-  monday.setDate(now.getDate() + diffToMonday);
+  monday.setDate(now.getDate() - diffToMonday);
 
-  const randomDay = Math.floor(Math.random() * 5);
+  const dayOffset = Math.floor(Math.random() * 5); // Mon–Fri
 
   const date = new Date(monday);
-  date.setDate(monday.getDate() + randomDay);
+  date.setDate(monday.getDate() + dayOffset);
 
   const hour = 11 + Math.floor(Math.random() * 7); // 11–17
 
@@ -106,14 +106,14 @@ function getRandomMeetingTime() {
   return { start: date, end };
 }
 
-// ===== GOOGLE EVENT =====
+// ================= GOOGLE MEET =================
 async function createEvent(email1, email2) {
   try {
     const { start, end } = getRandomMeetingTime();
 
     const event = {
       summary: "☕ Random Coffee",
-      description: "Неформальная встреча",
+      description: "Internal random coffee meeting",
       start: {
         dateTime: start.toISOString(),
         timeZone: "Europe/Moscow",
@@ -125,7 +125,7 @@ async function createEvent(email1, email2) {
       attendees: [{ email: email1 }, { email: email2 }],
       conferenceData: {
         createRequest: {
-          requestId: Math.random().toString(),
+          requestId: `${Date.now()}-${Math.random()}`,
           conferenceSolutionKey: { type: "hangoutsMeet" },
         },
       },
@@ -140,103 +140,114 @@ async function createEvent(email1, email2) {
     return res.data.hangoutLink;
 
   } catch (e) {
-    console.error("GOOGLE ERROR:", e.message);
+    console.error("Google error:", e.message);
     return null;
   }
 }
 
-// ===== TEXT =====
+// ================= TEXTS =================
 function generateMessage(pairsText) {
-  const texts = [
+  const templates = [
 `Привет, коллеги! 👋
 
-Представьте: случайная встреча у кофейного автомата... но в полностью виртуальном формате!
-
-Устрой себе небольшой перерыв и познакомься с коллегой ☕️
-
-Вот пары на эту неделю:
+Вот ваши random coffee пары:
 ${pairsText}
 
-Свяжись со своим напарником и выберите удобное время.
-
-Отличного общения!
-const finalMessage = `${message}
-
-📅 Открыть календарь:
-${calendarLink}`;`,
+Отличного общения ☕️`,
 
 `Всем привет! 😊
 
-Как проходит начало недели?
+Как начало недели?
 
-Ваши random coffee пары:
-${pairsText}
-
-Запланируйте 30 минут на знакомство 🙂
-const finalMessage = `${message}
-
-📅 Открыть календарь:
-${calendarLink}`;`,
+Ваши пары:
+${pairsText}`,
 
 `Привет! ☕️
 
-Новые знакомства — лучший способ начать неделю:
+Новые знакомства на этой неделе:
 
-${pairsText}
-
-Не откладывайте — напишите друг другу 🙂
-const finalMessage = `${message}
-
-📅 Открыть календарь:
-${calendarLink}`;`,
+${pairsText}`,
 
 `Коллеги, привет! 👋
 
-Случайные пары на эту неделю:
+Случайные пары:
 ${pairsText}
 
-Найдите 30 минут для общения 🙂
-const finalMessage = `${message}
-
-📅 Открыть календарь:
-${calendarLink}`;`
+Найдите 30 минут для общения 🙂`
   ];
 
-  return texts[Math.floor(Math.random() * texts.length)];
-  const calendarLink = "https://calendar.google.com/calendar/u/0/r/week";
+  return templates[Math.floor(Math.random() * templates.length)];
 }
 
-// ===== MAIN =====
+// ================= MAIN =================
 async function main() {
   const history = loadHistory();
   const users = await getUsers();
   const pairs = makePairs(users, history);
 
   const pairsText = pairs
-    .map(([u1, u2]) => `<@${u1}> и <@${u2}>`)
+    .map(([a, b]) => `<@${a}> ↔ <@${b}>`)
     .join("\n");
 
   const message = generateMessage(pairsText);
 
-  const newHistory = [...history];
+  const calendarLink = "https://calendar.google.com/calendar/u/0/r/week";
 
-  for (const [u1, u2] of pairs) {
-    const email1 = await getUserEmail(u1);
-    const email2 = await getUserEmail(u2);
+  let newHistory = [...history];
 
-    const meetLink = await createEvent(email1, email2);
+  const blocks = [
+    {
+      type: "header",
+      text: {
+        type: "plain_text",
+        text: "☕ Random Coffee"
+      }
+    },
+    {
+      type: "section",
+      text: {
+        type: "mrkdwn",
+        text: message
+      }
+    },
+    { type: "divider" }
+  ];
 
-    console.log(`Meeting for ${u1} & ${u2}: ${meetLink}`);
+  for (const [a, b] of pairs) {
+    const emailA = await getEmail(a);
+    const emailB = await getEmail(b);
 
-    newHistory.push([u1, u2]);
+    const meet = await createEvent(emailA, emailB);
+
+    newHistory.push([a, b]);
+
+    blocks.push({
+      type: "section",
+      text: {
+        type: "mrkdwn",
+        text: `👥 <@${a}> ↔ <@${b}>\n📅 ${meet || "не удалось создать встречу"}`
+      }
+    });
   }
+
+  blocks.push(
+    { type: "divider" },
+    {
+      type: "section",
+      text: {
+        type: "mrkdwn",
+        text: `📅 *Календарь недели*\n${calendarLink}`
+      }
+    }
+  );
 
   saveHistory(newHistory);
 
   await slack.chat.postMessage({
-  channel: CHANNEL_ID,
-  text: finalMessage,
-});
+    channel: CHANNEL_ID,
+    blocks,
+    text: "Random Coffee"
+  });
 }
 
 main();
