@@ -46,14 +46,25 @@ async function getUsers() {
       status.includes("pto") ||
       status.includes("отпуск");
 
-    if (
-      !u.is_bot &&
-      !u.deleted &&
-      !isVacation &&
-      !EXCLUDED_EMAILS.includes(email)
-    ) {
-      users.push(id);
-    }
+   if (!u.is_bot && !u.deleted) {
+  console.log("CHECK USER:", {
+    id,
+    email,
+    status: u.profile.status_text
+  });
+
+  const isVacation =
+    (u.profile.status_text || "").toLowerCase().includes("vacation") ||
+    (u.profile.status_text || "").toLowerCase().includes("leave") ||
+    (u.profile.status_text || "").toLowerCase().includes("pto") ||
+    (u.profile.status_text || "").toLowerCase().includes("отпуск");
+
+  const isExcluded = email && EXCLUDED_EMAILS.includes(email);
+
+  if (!isVacation && !isExcluded) {
+    users.push(id);
+  }
+}
   }
 
   return users;
