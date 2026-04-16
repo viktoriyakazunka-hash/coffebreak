@@ -101,53 +101,96 @@ function getRandomMeetingTime() {
 
 // ===== CREATE EVENT =====
 async function createEvent(email1, email2) {
-  const { start, end } = getRandomMeetingTime();
+  try {
+    const { start, end } = getRandomMeetingTime();
 
-  const event = {
-    summary: "☕ Random Coffee",
-    description: "Неформальная встреча",
-    start: { dateTime: start.toISOString() },
-    end: { dateTime: end.toISOString() },
-    attendees: [{ email: email1 }, { email: email2 }],
-    conferenceData: {
-      createRequest: {
-        requestId: Math.random().toString(),
-        conferenceSolutionKey: { type: "hangoutsMeet" },
+    const event = {
+      summary: "☕ Random Coffee",
+      description: "Неформальная встреча",
+      start: { dateTime: start.toISOString() },
+      end: { dateTime: end.toISOString() },
+      attendees: [{ email: email1 }, { email: email2 }],
+      conferenceData: {
+        createRequest: {
+          requestId: Math.random().toString(),
+          conferenceSolutionKey: { type: "hangoutsMeet" },
+        },
       },
-    },
-  };
+    };
 
-  const res = await calendar.events.insert({
-    calendarId: "primary",
-    resource: event,
-    conferenceDataVersion: 1,
-  });
+    const res = await calendar.events.insert({
+      calendarId: "primary",
+      resource: event,
+      conferenceDataVersion: 1,
+    });
 
-  return res.data.hangoutLink;
+    console.log("EVENT CREATED:", res.data.htmlLink);
+
+    return res.data.hangoutLink;
+
+  } catch (e) {
+    console.error("GOOGLE ERROR:", e.message);
+    return "❌ не удалось создать встречу";
+  }
 }
 
 // ===== RANDOM TEXT =====
-function generateMessage() {
+const pairsText = pairs
+  .map(([u1, u2]) => `<@${u1}> и <@${u2}>`)
+  .join("\n");
+function generateMessage(pairsText) {
   const texts = [
 `Привет, коллеги! 👋
 
-Представьте случайную встречу у кофемашины ☕
+Представьте: случайная встреча у кофейного автомата... но в полностью виртуальном формате!
 
-Вот ваши пары на эту неделю:`,
+Устрой себе небольшой перерыв и познакомься с коллегой для непринуждённой беседы ☕️
+
+Вот пары на эту неделю:
+${pairsText}
+
+Свяжись со своим напарником и выберите удобное время для 30-минутной встречи.
+
+Отличного общения!`,
 
 `Всем привет! 😊
 
-Как начало недели?
+Как проходит начало недели?
 
-Ловите random coffee пары:`,
+Предлагаем сделать его ещё лучше — познакомиться с кем-то из команды чуть ближе!
+
+Ваши random coffee пары:
+${pairsText}
+
+Договоритесь о короткой встрече на 30 минут в течение недели и просто поболтайте 🙂
+
+Хорошего настроения!`,
 
 `Привет! ☕️
 
-Новые знакомства — лучший способ начать неделю:`,
+Отличное начало недели — это новые знакомства!
 
-`Хей! 👋
+На этой неделе у вас есть шанс пообщаться с коллегой вне рабочих задач:
 
-Время немного отвлечься и познакомиться с коллегами:`
+${pairsText}
+
+Темы для разговора:
+— Как проходит неделя?
+— Чем занимаетесь вне работы?
+— Любимые фильмы или сериалы?
+
+Не откладывайте — напишите своему напарнику 🙂`,
+
+`Коллеги, привет! 👋
+
+Время для небольшой паузы и приятного общения!
+
+Случайные пары на эту неделю:
+${pairsText}
+
+Найдите 30 минут, чтобы познакомиться поближе и просто пообщаться 🙂
+
+Приятных разговоров!`
   ];
 
   return texts[Math.floor(Math.random() * texts.length)];
