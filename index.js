@@ -8,14 +8,14 @@ const CHANNEL_ID = process.env.SLACK_CHANNEL_ID;
 const HISTORY_FILE = "pairs_history.json";
 
 // ================= GOOGLE =================
-const oAuth2Client = new google.auth.OAuth2(
+const auth = new google.auth.OAuth2(
   process.env.GOOGLE_CLIENT_ID,
   process.env.GOOGLE_CLIENT_SECRET
 );
 
-oAuth2Client.setCredentials(JSON.parse(process.env.GOOGLE_TOKEN));
+auth.setCredentials(JSON.parse(process.env.GOOGLE_TOKEN));
 
-const calendar = google.calendar({ version: "v3", auth: oAuth2Client });
+const calendar = google.calendar({ version: "v3", auth });
 
 // ================= HISTORY =================
 function loadHistory() {
@@ -23,8 +23,8 @@ function loadHistory() {
   return JSON.parse(fs.readFileSync(HISTORY_FILE));
 }
 
-function saveHistory(data) {
-  fs.writeFileSync(HISTORY_FILE, JSON.stringify(data, null, 2));
+function saveHistory(h) {
+  fs.writeFileSync(HISTORY_FILE, JSON.stringify(h, null, 2));
 }
 
 // ================= USERS =================
@@ -41,8 +41,8 @@ async function getUsers() {
 
     const isVacation =
       status.includes("vacation") ||
-      status.includes("pto") ||
       status.includes("leave") ||
+      status.includes("pto") ||
       status.includes("отпуск");
 
     if (!u.is_bot && !u.deleted && !isVacation) {
@@ -53,8 +53,8 @@ async function getUsers() {
   return users;
 }
 
-async function getEmail(userId) {
-  const res = await slack.users.info({ user: userId });
+async function getEmail(id) {
+  const res = await slack.users.info({ user: id });
   return res.user.profile.email;
 }
 
@@ -70,32 +70,32 @@ function makePairs(users, history) {
   const pairs = [];
 
   while (shuffled.length >= 2) {
-    const u1 = shuffled.shift();
+    const a = shuffled.shift();
 
-    let idx = shuffled.findIndex(u2 => !pairExists(history, u1, u2));
+    let idx = shuffled.findIndex(b => !pairExists(history, a, b));
     if (idx === -1) idx = 0;
 
-    const u2 = shuffled.splice(idx, 1)[0];
-    pairs.push([u1, u2]);
+    const b = shuffled.splice(idx, 1)[0];
+    pairs.push([a, b]);
   }
 
   return pairs;
 }
 
-// ================= TIME (FIXED) =================
+// ================= TIME (FIXED, NO UTC BUG) =================
 function getRandomMeetingTime() {
   const now = new Date();
 
-  const day = now.getDay(); // 0 = Sunday
+  const day = now.getDay(); // 0 Sunday
   const diffToMonday = (day + 6) % 7;
 
   const monday = new Date(now);
   monday.setDate(now.getDate() - diffToMonday);
 
-  const dayOffset = Math.floor(Math.random() * 5); // Mon–Fri
+  const offset = Math.floor(Math.random() * 5); // Mon-Fri
 
   const date = new Date(monday);
-  date.setDate(monday.getDate() + dayOffset);
+  date.setDate(monday.getDate() + offset);
 
   const hour = 11 + Math.floor(Math.random() * 7); // 11–17
 
@@ -107,34 +107,34 @@ function getRandomMeetingTime() {
 }
 
 // ================= GOOGLE MEET =================
-async function createEvent(email1, email2) {
+async function createMeeting(email1, email2) {
   try {
     const { start, end } = getRandomMeetingTime();
 
     const event = {
       summary: "☕ Random Coffee",
-      description: "Internal random coffee meeting",
+      description: "Weekly coffee chat",
       start: {
         dateTime: start.toISOString(),
-        timeZone: "Europe/Moscow",
+        timeZone: "Europe/Moscow"
       },
       end: {
         dateTime: end.toISOString(),
-        timeZone: "Europe/Moscow",
+        timeZone: "Europe/Moscow"
       },
       attendees: [{ email: email1 }, { email: email2 }],
       conferenceData: {
         createRequest: {
           requestId: `${Date.now()}-${Math.random()}`,
-          conferenceSolutionKey: { type: "hangoutsMeet" },
-        },
-      },
+          conferenceSolutionKey: { type: "hangoutsMeet" }
+        }
+      }
     };
 
     const res = await calendar.events.insert({
       calendarId: "primary",
       resource: event,
-      conferenceDataVersion: 1,
+      conferenceDataVersion: 1
     });
 
     return res.data.hangoutLink;
@@ -145,35 +145,52 @@ async function createEvent(email1, email2) {
   }
 }
 
-// ================= TEXTS =================
+// ================= YOUR ORIGINAL TEXTS (RESTORED) =================
 function generateMessage(pairsText) {
   const templates = [
+
 `Привет, коллеги! 👋
 
-Вот ваши random coffee пары:
+Представьте: случайная встреча у кофейного автомата... но в полностью виртуальном формате!
+
+Устрой себе небольшой перерыв и познакомься с коллегой для непринуждённой беседы ☕️
+
+Вот пары на эту неделю:
 ${pairsText}
 
-Отличного общения ☕️`,
+Свяжись со своим напарником и выберите удобное время для 30-минутной встречи.
+
+Отличного общения!`,
 
 `Всем привет! 😊
 
-Как начало недели?
+Как проходит начало недели?
 
-Ваши пары:
-${pairsText}`,
+Предлагаем сделать его ещё лучше — познакомиться с кем-то из команды чуть ближе!
+
+Ваши random coffee пары:
+${pairsText}
+
+Договоритесь о короткой встрече на 30 минут в течение недели 🙂`,
 
 `Привет! ☕️
 
-Новые знакомства на этой неделе:
+Отличное начало недели — это новые знакомства!
 
-${pairsText}`,
+На этой неделе у вас есть шанс пообщаться:
+
+${pairsText}
+
+Темы: неделя, жизнь, фильмы, хобби 🙂`,
 
 `Коллеги, привет! 👋
+
+Время для небольшой паузы и общения!
 
 Случайные пары:
 ${pairsText}
 
-Найдите 30 минут для общения 🙂`
+Найдите 30 минут и просто пообщайтесь 🙂`
   ];
 
   return templates[Math.floor(Math.random() * templates.length)];
@@ -193,41 +210,35 @@ async function main() {
 
   const calendarLink = "https://calendar.google.com/calendar/u/0/r/week";
 
-  let newHistory = [...history];
-
   const blocks = [
     {
       type: "header",
-      text: {
-        type: "plain_text",
-        text: "☕ Random Coffee"
-      }
+      text: { type: "plain_text", text: "☕ Random Coffee" }
     },
     {
       type: "section",
-      text: {
-        type: "mrkdwn",
-        text: message
-      }
+      text: { type: "mrkdwn", text: message }
     },
     { type: "divider" }
   ];
+
+  let newHistory = [...history];
 
   for (const [a, b] of pairs) {
     const emailA = await getEmail(a);
     const emailB = await getEmail(b);
 
-    const meet = await createEvent(emailA, emailB);
-
-    newHistory.push([a, b]);
+    const meet = await createMeeting(emailA, emailB);
 
     blocks.push({
       type: "section",
       text: {
         type: "mrkdwn",
-        text: `👥 <@${a}> ↔ <@${b}>\n📅 ${meet || "не удалось создать встречу"}`
+        text: `👥 <@${a}> ↔ <@${b}>\n📅 ${meet || "meeting not created"}`
       }
     });
+
+    newHistory.push([a, b]);
   }
 
   blocks.push(
