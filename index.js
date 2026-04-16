@@ -85,16 +85,27 @@ function makePairs(users, history) {
 function getRandomMeetingTime() {
   const now = new Date();
 
-  const dayOffset = Math.floor(Math.random() * 5); // пн-пт
-  const hour = 11 + Math.floor(Math.random() * 7); // 11-17
+  // найти ближайший понедельник
+  const day = now.getDay(); // 0 = вс, 1 = пн ...
+  const diffToMonday = (8 - day) % 7 || 7;
 
-  const date = new Date();
-  date.setDate(now.getDate() + dayOffset + 1);
-  date.setHours(hour, 0, 0);
+  const monday = new Date(now);
+  monday.setDate(now.getDate() + diffToMonday);
 
-  const end = new Date(date.getTime() + 30 * 60000);
+  // выбрать день ПН-ПТ
+  const randomDayOffset = Math.floor(Math.random() * 5); // 0-4
 
-  return { start: date, end };
+  const meetingDate = new Date(monday);
+  meetingDate.setDate(monday.getDate() + randomDayOffset);
+
+  // выбрать час 11–17
+  const hour = 11 + Math.floor(Math.random() * 7);
+
+  meetingDate.setHours(hour, 0, 0, 0);
+
+  const end = new Date(meetingDate.getTime() + 30 * 60000);
+
+  return { start: meetingDate, end };
 }
 
 // ===== GOOGLE EVENT =====
