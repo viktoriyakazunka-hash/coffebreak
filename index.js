@@ -85,20 +85,20 @@ function makePairs(users, history) {
 function getRandomMeetingTime() {
   const now = new Date();
 
-  // найти ближайший понедельник
-  const day = now.getDay(); // 0 = вс, 1 = пн ...
-  const diffToMonday = (8 - day) % 7 || 7;
+  // находим понедельник текущей недели
+  const day = now.getDay(); // 0-6
+  const diffToMonday = day === 0 ? -6 : 1 - day;
 
   const monday = new Date(now);
   monday.setDate(now.getDate() + diffToMonday);
 
-  // выбрать день ПН-ПТ
-  const randomDayOffset = Math.floor(Math.random() * 5); // 0-4
+  // случайный день ПН-ПТ
+  const randomDayOffset = Math.floor(Math.random() * 5);
 
   const meetingDate = new Date(monday);
   meetingDate.setDate(monday.getDate() + randomDayOffset);
 
-  // выбрать час 11–17
+  // случайный час 11–17
   const hour = 11 + Math.floor(Math.random() * 7);
 
   meetingDate.setHours(hour, 0, 0, 0);
@@ -161,7 +161,11 @@ ${pairsText}
 
 Свяжись со своим напарником и выберите удобное время.
 
-Отличного общения!`,
+Отличного общения!
+const finalMessage = `${message}
+
+📅 Открыть календарь:
+${calendarLink}`;`,
 
 `Всем привет! 😊
 
@@ -170,7 +174,11 @@ ${pairsText}
 Ваши random coffee пары:
 ${pairsText}
 
-Запланируйте 30 минут на знакомство 🙂`,
+Запланируйте 30 минут на знакомство 🙂
+const finalMessage = `${message}
+
+📅 Открыть календарь:
+${calendarLink}`;`,
 
 `Привет! ☕️
 
@@ -178,17 +186,26 @@ ${pairsText}
 
 ${pairsText}
 
-Не откладывайте — напишите друг другу 🙂`,
+Не откладывайте — напишите друг другу 🙂
+const finalMessage = `${message}
+
+📅 Открыть календарь:
+${calendarLink}`;`,
 
 `Коллеги, привет! 👋
 
 Случайные пары на эту неделю:
 ${pairsText}
 
-Найдите 30 минут для общения 🙂`
+Найдите 30 минут для общения 🙂
+const finalMessage = `${message}
+
+📅 Открыть календарь:
+${calendarLink}`;`
   ];
 
   return texts[Math.floor(Math.random() * texts.length)];
+  const calendarLink = "https://calendar.google.com/calendar/u/0/r/week";
 }
 
 // ===== MAIN =====
@@ -219,9 +236,9 @@ async function main() {
   saveHistory(newHistory);
 
   await slack.chat.postMessage({
-    channel: CHANNEL_ID,
-    text: message,
-  });
+  channel: CHANNEL_ID,
+  text: finalMessage,
+});
 }
 
 main();
