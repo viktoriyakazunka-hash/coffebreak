@@ -190,7 +190,7 @@ async function sendDM(userId, partnerId, meeting) {
       text,
       unfurl_links: false
     });
-
+console.log("Sending DM to:", userId);
   } catch (e) {
     console.error("DM ERROR:", e.data || e.message);
   }
@@ -248,7 +248,7 @@ async function main() {
 
     newHistory.push([a, b]);
   }
-
+console.log("PAIRS:", pairs);
   saveHistory(newHistory);
 
   const blocks = [
