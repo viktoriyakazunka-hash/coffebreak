@@ -155,18 +155,34 @@ async function createMeeting(email1, email2) {
 
 // ================= DM =================
 async function sendDM(userId, partnerId, meeting) {
-  if (!meeting) return;
+  if (!meeting) {
+    console.log("No meeting for", userId);
+    return;
+  }
 
-  const date = meeting.start.toLocaleString("ru-RU", {
-    timeZone: "Europe/Moscow",
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-    hour: "2-digit",
-    minute: "2-digit"
-  });
+  try {
+    console.log("Opening DM for:", userId);
 
-  const text = `Привет! 👋
+    const open = await slack.conversations.open({
+      users: userId
+    });
+
+    const channelId = open.channel.id;
+
+    console.log("DM channel:", channelId);
+
+    const date = meeting.start.toLocaleString("ru-RU", {
+      timeZone: "Europe/Moscow",
+      weekday: "long",
+      day: "numeric",
+      month: "long",
+      hour: "2-digit",
+      minute: "2-digit"
+    });
+
+    await slack.chat.postMessage({
+      channel: channelId,
+      text: `Привет! 👋
 
 Твоя random coffee встреча:
 
@@ -174,25 +190,14 @@ async function sendDM(userId, partnerId, meeting) {
 📅 ${date}
 🔗 ${meeting.link}
 
-Хорошего общения ☕️`;
-
-  try {
-    // 👉 ОТКРЫВАЕМ DM
-    const res = await slack.conversations.open({
-      users: userId
-    });
-
-    const channelId = res.channel.id;
-
-    // 👉 ШЛЁМ сообщение
-    await slack.chat.postMessage({
-      channel: channelId,
-      text,
+Хорошего общения ☕️`,
       unfurl_links: false
     });
-console.log("Sending DM to:", userId);
+
+    console.log("DM sent to:", userId);
+
   } catch (e) {
-    console.error("DM ERROR:", e.data || e.message);
+    console.error("DM ERROR:", JSON.stringify(e.data || e.message));
   }
 }
 
@@ -234,6 +239,7 @@ async function main() {
   const history = loadHistory();
   const users = await getUsers();
   const pairs = makePairs(users, history);
+  console.log("PAIRS:", pairs);
 
   let newHistory = [...history];
 
@@ -248,7 +254,7 @@ async function main() {
 
     newHistory.push([a, b]);
   }
-console.log("PAIRS:", pairs);
+
   saveHistory(newHistory);
 
   const blocks = [
