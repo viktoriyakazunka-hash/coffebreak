@@ -52,6 +52,7 @@ async function getUsers() {
   return users;
 }
 
+// ===== EMAIL =====
 async function getUserEmail(userId) {
   const res = await slack.users.info({ user: userId });
   return res.user.profile.email;
