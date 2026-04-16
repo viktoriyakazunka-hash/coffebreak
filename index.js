@@ -176,11 +176,24 @@ async function sendDM(userId, partnerId, meeting) {
 
 Хорошего общения ☕️`;
 
-  await slack.chat.postMessage({
-    channel: userId,
-    text,
-    unfurl_links: false
-  });
+  try {
+    // 👉 ОТКРЫВАЕМ DM
+    const res = await slack.conversations.open({
+      users: userId
+    });
+
+    const channelId = res.channel.id;
+
+    // 👉 ШЛЁМ сообщение
+    await slack.chat.postMessage({
+      channel: channelId,
+      text,
+      unfurl_links: false
+    });
+
+  } catch (e) {
+    console.error("DM ERROR:", e.data || e.message);
+  }
 }
 
 // ================= TEXTS =================
