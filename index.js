@@ -7,7 +7,7 @@ const CHANNEL_ID = process.env.SLACK_CHANNEL_ID;
 
 const HISTORY_FILE = "pairs_history.json";
 
-// ===== GOOGLE AUTH =====
+// ===== GOOGLE =====
 const oAuth2Client = new google.auth.OAuth2(
   process.env.GOOGLE_CLIENT_ID,
   process.env.GOOGLE_CLIENT_SECRET
@@ -17,7 +17,7 @@ oAuth2Client.setCredentials(JSON.parse(process.env.GOOGLE_TOKEN));
 
 const calendar = google.calendar({ version: "v3", auth: oAuth2Client });
 
-// ===== LOAD/SAVE HISTORY =====
+// ===== HISTORY =====
 function loadHistory() {
   if (!fs.existsSync(HISTORY_FILE)) return [];
   return JSON.parse(fs.readFileSync(HISTORY_FILE));
@@ -27,7 +27,7 @@ function saveHistory(history) {
   fs.writeFileSync(HISTORY_FILE, JSON.stringify(history, null, 2));
 }
 
-// ===== GET USERS =====
+// ===== USERS =====
 async function getUsers() {
   const res = await slack.conversations.members({ channel: CHANNEL_ID });
   const users = [];
@@ -52,20 +52,18 @@ async function getUsers() {
   return users;
 }
 
-// ===== GET EMAIL =====
 async function getUserEmail(userId) {
   const res = await slack.users.info({ user: userId });
   return res.user.profile.email;
 }
 
-// ===== PAIR CHECK =====
+// ===== PAIRS =====
 function pairExists(history, u1, u2) {
   return history.some(
     ([a, b]) => (a === u1 && b === u2) || (a === u2 && b === u1)
   );
 }
 
-// ===== MAKE PAIRS =====
 function makePairs(users, history) {
   let shuffled = [...users].sort(() => 0.5 - Math.random());
   const pairs = [];
@@ -83,7 +81,7 @@ function makePairs(users, history) {
   return pairs;
 }
 
-// ===== RANDOM WORK TIME =====
+// ===== TIME =====
 function getRandomMeetingTime() {
   const now = new Date();
 
@@ -99,7 +97,7 @@ function getRandomMeetingTime() {
   return { start: date, end };
 }
 
-// ===== CREATE EVENT =====
+// ===== GOOGLE EVENT =====
 async function createEvent(email1, email2) {
   try {
     const { start, end } = getRandomMeetingTime();
@@ -134,22 +132,19 @@ async function createEvent(email1, email2) {
   }
 }
 
-// ===== RANDOM TEXT =====
-const pairsText = pairs
-  .map(([u1, u2]) => `<@${u1}> и <@${u2}>`)
-  .join("\n");
+// ===== TEXT =====
 function generateMessage(pairsText) {
   const texts = [
 `Привет, коллеги! 👋
 
 Представьте: случайная встреча у кофейного автомата... но в полностью виртуальном формате!
 
-Устрой себе небольшой перерыв и познакомься с коллегой для непринуждённой беседы ☕️
+Устрой себе небольшой перерыв и познакомься с коллегой ☕️
 
 Вот пары на эту неделю:
 ${pairsText}
 
-Свяжись со своим напарником и выберите удобное время для 30-минутной встречи.
+Свяжись со своим напарником и выберите удобное время.
 
 Отличного общения!`,
 
@@ -157,40 +152,25 @@ ${pairsText}
 
 Как проходит начало недели?
 
-Предлагаем сделать его ещё лучше — познакомиться с кем-то из команды чуть ближе!
-
 Ваши random coffee пары:
 ${pairsText}
 
-Договоритесь о короткой встрече на 30 минут в течение недели и просто поболтайте 🙂
-
-Хорошего настроения!`,
+Запланируйте 30 минут на знакомство 🙂`,
 
 `Привет! ☕️
 
-Отличное начало недели — это новые знакомства!
-
-На этой неделе у вас есть шанс пообщаться с коллегой вне рабочих задач:
+Новые знакомства — лучший способ начать неделю:
 
 ${pairsText}
 
-Темы для разговора:
-— Как проходит неделя?
-— Чем занимаетесь вне работы?
-— Любимые фильмы или сериалы?
-
-Не откладывайте — напишите своему напарнику 🙂`,
+Не откладывайте — напишите друг другу 🙂`,
 
 `Коллеги, привет! 👋
-
-Время для небольшой паузы и приятного общения!
 
 Случайные пары на эту неделю:
 ${pairsText}
 
-Найдите 30 минут, чтобы познакомиться поближе и просто пообщаться 🙂
-
-Приятных разговоров!`
+Найдите 30 минут для общения 🙂`
   ];
 
   return texts[Math.floor(Math.random() * texts.length)];
@@ -202,17 +182,11 @@ async function main() {
   const users = await getUsers();
   const pairs = makePairs(users, history);
 
-  let blocks = [
-    {
-      type: "header",
-      text: { type: "plain_text", text: "☕ Random Coffee" },
-    },
-    {
-      type: "section",
-      text: { type: "mrkdwn", text: generateMessage() },
-    },
-    { type: "divider" },
-  ];
+  const pairsText = pairs
+    .map(([u1, u2]) => `<@${u1}> и <@${u2}>`)
+    .join("\n");
+
+  const message = generateMessage(pairsText);
 
   const newHistory = [...history];
 
@@ -222,35 +196,16 @@ async function main() {
 
     const meetLink = await createEvent(email1, email2);
 
-    blocks.push({
-      type: "section",
-      text: {
-        type: "mrkdwn",
-        text: `👥 <@${u1}> ↔ <@${u2}>\n📅 ${meetLink}`,
-      },
-    });
+    console.log(`Meeting for ${u1} & ${u2}: ${meetLink}`);
 
     newHistory.push([u1, u2]);
   }
-
-  blocks.push(
-    { type: "divider" },
-    {
-      type: "section",
-      text: {
-        type: "mrkdwn",
-        text:
-          "*Идеи для разговора:*\n• Как проходит неделя?\n• Чем занимаетесь вне работы?\n• Любимые фильмы или хобби?",
-      },
-    }
-  );
 
   saveHistory(newHistory);
 
   await slack.chat.postMessage({
     channel: CHANNEL_ID,
-    blocks,
-    text: "Random Coffee",
+    text: message,
   });
 }
 
