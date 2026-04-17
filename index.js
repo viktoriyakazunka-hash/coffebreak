@@ -268,26 +268,37 @@ async function main() {
 
   saveHistory(newHistory);
 
-  const blocks = [
-    {
-      type: "header",
-      text: { type: "plain_text", text: "☕ Random Coffee" }
-    },
-    {
-      type: "section",
-      text: {
-        type: "mrkdwn",
-        text: generateMessage()
-      }
-    },
-    {
-      type: "section",
-      text: {
-        type: "mrkdwn",
-        text: "📅 Календарь недели:\nhttps://calendar.google.com/calendar/u/0/r/week"
-      }
+  const pairsList = pairs
+  .map(([a, b]) => `👥 <@${a}> ↔ <@${b}>`)
+  .join("\n");
+
+const blocks = [
+  {
+    type: "header",
+    text: { type: "plain_text", text: "☕ Random Coffee" }
+  },
+  {
+    type: "section",
+    text: {
+      type: "mrkdwn",
+      text: generateMessage()
     }
-  ];
+  },
+  {
+    type: "section",
+    text: {
+      type: "mrkdwn",
+      text: `*☕ Пары на эту неделю:*\n${pairsList}`
+    }
+  },
+  {
+    type: "section",
+    text: {
+      type: "mrkdwn",
+      text: "📅 *Календарь недели:*\nhttps://calendar.google.com/calendar/u/0/r/week"
+    }
+  }
+];
 
   await slack.chat.postMessage({
     channel: CHANNEL_ID,
