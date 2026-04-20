@@ -46,25 +46,11 @@ async function getUsers() {
       status.includes("pto") ||
       status.includes("отпуск");
 
-   if (!u.is_bot && !u.deleted) {
-  console.log("CHECK USER:", {
-    id,
-    email,
-    status: u.profile.status_text
-  });
+    const isExcluded = email && EXCLUDED_EMAILS.includes(email);
 
-  const isVacation =
-    (u.profile.status_text || "").toLowerCase().includes("vacation") ||
-    (u.profile.status_text || "").toLowerCase().includes("leave") ||
-    (u.profile.status_text || "").toLowerCase().includes("pto") ||
-    (u.profile.status_text || "").toLowerCase().includes("отпуск");
-
-  const isExcluded = email && EXCLUDED_EMAILS.includes(email);
-
-  if (!isVacation && !isExcluded) {
-    users.push(id);
-  }
-}
+    if (!u.is_bot && !u.deleted && !isVacation && !isExcluded) {
+      users.push(id);
+    }
   }
 
   return users;
@@ -77,9 +63,7 @@ async function getEmail(id) {
 
 // ================= PAIRS =================
 function pairExists(history, a, b) {
-  return history.some(
-    ([x, y]) => (x === a && y === b) || (x === b && y === a)
-  );
+  return history.some(group => group.includes(a) && group.includes(b));
 }
 
 function makePairs(users, history) {
@@ -96,11 +80,18 @@ function makePairs(users, history) {
     pairs.push([a, b]);
   }
 
+  // если остался один — добавляем в случайную пару
+  if (shuffled.length === 1 && pairs.length > 0) {
+    const leftover = shuffled.shift();
+    const randomIndex = Math.floor(Math.random() * pairs.length);
+    pairs[randomIndex].push(leftover);
+  }
+
   return pairs;
 }
 
 // ================= TIME =================
-function getRandomMeetingTime() {
+function getRandomSlot() {
   const now = new Date();
 
   const day = now.getDay();
@@ -114,7 +105,7 @@ function getRandomMeetingTime() {
   const date = new Date(monday);
   date.setDate(monday.getDate() + offset);
 
-  const hour = 11 + Math.floor(Math.random() * 7);
+  const hour = 11 + Math.floor(Math.random() * 7); // 11-17
 
   date.setHours(hour, 0, 0, 0);
 
@@ -123,10 +114,10 @@ function getRandomMeetingTime() {
   return { start: date, end };
 }
 
-// ================= GOOGLE MEET =================
-async function createMeeting(email1, email2) {
+// ================= GOOGLE MEETING =================
+async function createMeeting(emails) {
   try {
-    const { start, end } = getRandomMeetingTime();
+    const { start, end } = getRandomSlot();
 
     const event = {
       summary: "☕ Random Coffee",
@@ -138,7 +129,7 @@ async function createMeeting(email1, email2) {
         dateTime: end.toISOString(),
         timeZone: "Europe/Moscow"
       },
-      attendees: [{ email: email1 }, { email: email2 }],
+      attendees: emails.map(e => ({ email: e })),
       conferenceData: {
         createRequest: {
           requestId: `${Date.now()}-${Math.random()}`,
@@ -150,7 +141,8 @@ async function createMeeting(email1, email2) {
     const res = await calendar.events.insert({
       calendarId: "primary",
       resource: event,
-      conferenceDataVersion: 1
+      conferenceDataVersion: 1,
+      sendUpdates: "all"
     });
 
     return {
@@ -165,62 +157,48 @@ async function createMeeting(email1, email2) {
 }
 
 // ================= DM =================
-async function sendDM(userId, partnerId, meeting) {
-  if (!meeting) {
-    console.log("No meeting for", userId);
-    return;
-  }
+async function sendDM(userId, group, meeting) {
+  if (!meeting) return;
 
-  try {
-    console.log("Opening DM for:", userId);
+  const date = meeting.start.toLocaleString("ru-RU", {
+    timeZone: "Europe/Moscow",
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    hour: "2-digit",
+    minute: "2-digit"
+  });
 
-    const open = await slack.conversations.open({
-      users: userId
-    });
-
-    const channelId = open.channel.id;
-
-    console.log("DM channel:", channelId);
-
-    const date = meeting.start.toLocaleString("ru-RU", {
-      timeZone: "Europe/Moscow",
-      weekday: "long",
-      day: "numeric",
-      month: "long",
-      hour: "2-digit",
-      minute: "2-digit"
-    });
-
-    await slack.chat.postMessage({
-      channel: channelId,
-      text: `Привет! 👋
+  const text = `Привет! 👋
 
 Твоя random coffee встреча:
 
-👥 <@${userId}> ↔ <@${partnerId}>
+👥 ${group.map(u => `<@${u}>`).join(" ↔ ")}
+
 📅 ${date}
 🔗 ${meeting.link}
 
-Хорошего общения :wink:`,
-      unfurl_links: false
-    });
+Если время не подходит — можно перенести встречу в календаре 🙂
 
-    console.log("DM sent to:", userId);
+Хорошего общения ☕️`;
 
-  } catch (e) {
-    console.error("DM ERROR:", JSON.stringify(e.data || e.message));
-  }
+  const open = await slack.conversations.open({ users: userId });
+
+  await slack.chat.postMessage({
+    channel: open.channel.id,
+    text,
+    unfurl_links: false
+  });
 }
 
-// ================= TEXTS =================
+// ================= TEXT =================
 function generateMessage() {
   const templates = [
-
-`Привет, коллеги! 😊
+`Привет, коллеги! :blush:
 
 Представьте: случайная встреча у кофейного автомата... но в полностью виртуальном формате!
 
-Устройте себе небольшой перерыв и познакомься с коллегой для непринуждённой беседы. Ссылка от Random Coffee в DM :wink:`,
+Устройте себе небольшой перерыв и познакомься с коллегой для непринуждённой беседы. Проверьте DM :custard::coffee:`,
 
 `Всем привет!
 
@@ -228,18 +206,18 @@ function generateMessage() {
 
 Предлагаю сделать его ещё лучше — познакомиться с кем-то из команды чуть ближе!
 Темы для обсуждения: погода, интересы, как проведете свободное от работы время. 
-Это все можно обсудить на встрече, перейдя по ссылке от Random Coffee :wink:`,
+Это все можно обсудить на встрече, перейдя по ссылке от Random Coffee :pancakes::coffee:`,
 
 `Привет!
 
-Отличное начало недели — это немного общения с коллегой :blush:
+Отличное начало недели — это немного общения с коллегой :speech_balloon:
 
-Проверьте календарь и сообщения от Random Coffee: встреча уже назначена :wink:`,
+Проверьте свои сообщения от Random Coffee :cookie::coffee:`,
 
-`Коллеги, привет! 👋
+`Коллеги, привет! :wave:
 
 Время для небольшой кофе-паузы и приятного общения!
-Проверьте свои сообщения и календарь на наличие встречи :wink:`
+Все детали уже у вас в личке :cake::coffee:`
   ];
 
   return templates[Math.floor(Math.random() * templates.length)];
@@ -249,56 +227,56 @@ function generateMessage() {
 async function main() {
   const history = loadHistory();
   const users = await getUsers();
-  const pairs = makePairs(users, history);
-  console.log("PAIRS:", pairs);
 
+  if (users.length < 2) {
+    await slack.chat.postMessage({
+      channel: CHANNEL_ID,
+      text: "Недостаточно участников для random coffee ☕️"
+    });
+    return;
+  }
+
+  const pairs = makePairs(users, history);
   let newHistory = [...history];
 
-  for (const [a, b] of pairs) {
-    const emailA = await getEmail(a);
-    const emailB = await getEmail(b);
+  for (const group of pairs) {
+    const emails = await Promise.all(group.map(getEmail));
+    const meeting = await createMeeting(emails);
 
-    const meeting = await createMeeting(emailA, emailB);
+    for (const user of group) {
+      await sendDM(user, group, meeting);
+    }
 
-    await sendDM(a, b, meeting);
-    await sendDM(b, a, meeting);
-
-    newHistory.push([a, b]);
+    newHistory.push(group);
   }
 
   saveHistory(newHistory);
 
   const pairsList = pairs
-  .map(([a, b]) => `👥 <@${a}> ↔ <@${b}>`)
-  .join("\n");
+    .map(group => `👥 ${group.map(u => `<@${u}>`).join(" ↔ ")}`)
+    .join("\n");
 
-const blocks = [
-  {
-    type: "header",
-    text: { type: "plain_text", text: "☕ Random Coffee" }
-  },
-  {
-    type: "section",
-    text: {
-      type: "mrkdwn",
-      text: generateMessage()
+  const blocks = [
+    {
+      type: "header",
+      text: { type: "plain_text", text: "☕ Random Coffee" }
+    },
+    {
+      type: "section",
+      text: { type: "mrkdwn", text: generateMessage() }
+    },
+    {
+      type: "section",
+      text: { type: "mrkdwn", text: `*Пары на эту неделю:*\n${pairsList}` }
+    },
+    {
+      type: "section",
+      text: {
+        type: "mrkdwn",
+        text: "📅 https://calendar.google.com/calendar/u/0/r/week"
+      }
     }
-  },
-  {
-    type: "section",
-    text: {
-      type: "mrkdwn",
-      text: `*☕ Пары на эту неделю:*\n${pairsList}`
-    }
-  },
-  {
-    type: "section",
-    text: {
-      type: "mrkdwn",
-      text: "📅 *Календарь недели:*\nhttps://calendar.google.com/calendar/u/0/r/week"
-    }
-  }
-];
+  ];
 
   await slack.chat.postMessage({
     channel: CHANNEL_ID,
