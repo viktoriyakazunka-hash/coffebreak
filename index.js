@@ -1,3 +1,9 @@
+const SPECIAL_GROUP_EMAILS = [
+  "v.kovalev@twinby.com",
+  "a.parfenova@twinby.com",
+  "gusev.dev@twinby.com",
+  "egorov.dev@twinby.com"
+];
 const fs = require("fs");
 const { WebClient } = require("@slack/web-api");
 const { google } = require("googleapis");
@@ -228,6 +234,20 @@ async function main() {
   const history = loadHistory();
   const users = await getUsers();
 
+// разделение на группы
+const specialGroup = [];
+const regularGroup = [];
+
+for (const userId of users) {
+  const email = await getEmail(userId);
+
+  if (email && SPECIAL_GROUP_EMAILS.includes(email)) {
+    specialGroup.push(userId);
+  } else {
+    regularGroup.push(userId);
+  }
+}
+
   if (users.length < 2) {
     await slack.chat.postMessage({
       channel: CHANNEL_ID,
@@ -236,7 +256,10 @@ async function main() {
     return;
   }
 
-  const pairs = makePairs(users, history);
+  const pairsSpecial = makePairs(specialGroup, history);
+const pairsRegular = makePairs(regularGroup, history);
+
+const pairs = [...pairsSpecial, ...pairsRegular];
   let newHistory = [...history];
 
   for (const group of pairs) {
