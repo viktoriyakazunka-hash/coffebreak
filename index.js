@@ -1,9 +1,3 @@
-const SPECIAL_GROUP_EMAILS = [
-  "v.kovalev@twinby.com",
-  "a.parfenova@twinby.com",
-  "gusev.dev@twinby.com",
-  "egorov.dev@twinby.com"
-];
 const fs = require("fs");
 const { WebClient } = require("@slack/web-api");
 const { google } = require("googleapis");
@@ -12,7 +6,15 @@ const slack = new WebClient(process.env.SLACK_BOT_TOKEN);
 const CHANNEL_ID = process.env.SLACK_CHANNEL_ID;
 
 const HISTORY_FILE = "pairs_history.json";
+
 const EXCLUDED_EMAILS = ["viktoriya.kazunka@neuralab.tech"];
+
+const SPECIAL_GROUP_EMAILS = [
+  "v.kovalev@twinby.com",
+  "a.parfenova@twinby.com",
+  "gusev.dev@twinby.com",
+  "egorov.dev@twinby.com"
+];
 
 // ================= GOOGLE =================
 const auth = new google.auth.OAuth2(
@@ -32,6 +34,17 @@ function loadHistory() {
 
 function saveHistory(data) {
   fs.writeFileSync(HISTORY_FILE, JSON.stringify(data, null, 2));
+}
+
+// ================= EMAIL CACHE =================
+const emailCache = {};
+
+async function getEmailCached(id) {
+  if (!emailCache[id]) {
+    const res = await slack.users.info({ user: id });
+    emailCache[id] = res.user.profile.email;
+  }
+  return emailCache[id];
 }
 
 // ================= USERS =================
@@ -62,11 +75,6 @@ async function getUsers() {
   return users;
 }
 
-async function getEmail(id) {
-  const res = await slack.users.info({ user: id });
-  return res.user.profile.email;
-}
-
 // ================= PAIRS =================
 function pairExists(history, a, b) {
   return history.some(group => group.includes(a) && group.includes(b));
@@ -86,7 +94,6 @@ function makePairs(users, history) {
     pairs.push([a, b]);
   }
 
-  // если остался один — добавляем в случайную пару
   if (shuffled.length === 1 && pairs.length > 0) {
     const leftover = shuffled.shift();
     const randomIndex = Math.floor(Math.random() * pairs.length);
@@ -111,7 +118,7 @@ function getRandomSlot() {
   const date = new Date(monday);
   date.setDate(monday.getDate() + offset);
 
-  const hour = 11 + Math.floor(Math.random() * 7); // 11-17
+  const hour = 11 + Math.floor(Math.random() * 7);
 
   date.setHours(hour, 0, 0, 0);
 
@@ -120,7 +127,7 @@ function getRandomSlot() {
   return { start: date, end };
 }
 
-// ================= GOOGLE MEETING =================
+// ================= GOOGLE MEET =================
 async function createMeeting(emails) {
   try {
     const { start, end } = getRandomSlot();
@@ -234,20 +241,6 @@ async function main() {
   const history = loadHistory();
   const users = await getUsers();
 
-// разделение на группы
-const specialGroup = [];
-const regularGroup = [];
-
-for (const userId of users) {
-  const email = await getEmail(userId);
-
-  if (email && SPECIAL_GROUP_EMAILS.includes(email)) {
-    specialGroup.push(userId);
-  } else {
-    regularGroup.push(userId);
-  }
-}
-
   if (users.length < 2) {
     await slack.chat.postMessage({
       channel: CHANNEL_ID,
@@ -256,14 +249,36 @@ for (const userId of users) {
     return;
   }
 
-  const pairsSpecial = makePairs(specialGroup, history);
-const pairsRegular = makePairs(regularGroup, history);
+  // ===== делим на группы =====
+  const specialGroup = [];
+  const regularGroup = [];
 
-const pairs = [...pairsSpecial, ...pairsRegular];
+  for (const userId of users) {
+    const email = await getEmailCached(userId);
+
+    if (email && SPECIAL_GROUP_EMAILS.includes(email)) {
+      specialGroup.push(userId);
+    } else {
+      regularGroup.push(userId);
+    }
+  }
+
+  // фикс выпадения
+  if (specialGroup.length < 2) {
+    regularGroup.push(...specialGroup);
+    specialGroup.length = 0;
+  }
+
+  // ===== пары =====
+  const pairsSpecial = makePairs(specialGroup, history);
+  const pairsRegular = makePairs(regularGroup, history);
+
+  const pairs = [...pairsSpecial, ...pairsRegular];
+
   let newHistory = [...history];
 
   for (const group of pairs) {
-    const emails = await Promise.all(group.map(getEmail));
+    const emails = await Promise.all(group.map(getEmailCached));
     const meeting = await createMeeting(emails);
 
     for (const user of group) {
