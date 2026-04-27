@@ -143,6 +143,9 @@ async function createMeeting(emails) {
         timeZone: "Europe/Moscow"
       },
       attendees: emails.map(e => ({ email: e })),
+      guestsCanModify: true,
+  guestsCanInviteOthers: false,
+  guestsCanSeeOtherGuests: true,
       conferenceData: {
         createRequest: {
           requestId: `${Date.now()}-${Math.random()}`,
