@@ -61,6 +61,7 @@ async function getUsers() {
 
     const isVacation =
       status.includes("vacation") ||
+      status.includes("vacationing") ||
       status.includes("leave") ||
       status.includes("pto") ||
       status.includes("отпуск");
