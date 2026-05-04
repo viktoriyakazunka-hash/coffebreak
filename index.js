@@ -108,30 +108,32 @@ function makePairs(users, history) {
 function getFixedThursdaySlot() {
   const now = new Date();
 
-  // текущее время в МСК
-  const moscowNow = new Date(
+  // получаем текущую дату в МСК
+  const moscow = new Date(
     now.toLocaleString("en-US", { timeZone: "Europe/Moscow" })
   );
 
-  const day = moscowNow.getDay(); // 0 вс, 1 пн, ..., 4 чт
+  const day = moscow.getDay();
 
-  // считаем ближайший четверг
-  let diffToThursday = 4 - day;
+  let diff = 4 - day; // до четверга
+  if (diff < 0) diff += 7;
 
-  // если уже после четверга → берем следующий
-  if (diffToThursday < 0) diffToThursday += 7;
+  const thursday = new Date(moscow);
+  thursday.setDate(moscow.getDate() + diff);
 
-  const thursday = new Date(moscowNow);
-  thursday.setDate(moscowNow.getDate() + diffToThursday);
+  // ⚠️ КЛЮЧЕВОЙ МОМЕНТ
+  // создаём ISO вручную как МСК 15:00
 
-  // ставим 15:00 МСК
-  thursday.setHours(12, 0, 0, 0);
+  const year = thursday.getFullYear();
+  const month = String(thursday.getMonth() + 1).padStart(2, "0");
+  const date = String(thursday.getDate()).padStart(2, "0");
 
-  const end = new Date(thursday.getTime() + 30 * 60000);
+  const startISO = `${year}-${month}-${date}T15:00:00+03:00`;
+  const endISO = `${year}-${month}-${date}T15:30:00+03:00`;
 
   return {
-    start: thursday,
-    end
+    start: startISO,
+    end: endISO
   };
 }
 
@@ -143,7 +145,7 @@ async function createMeeting(emails) {
     const event = {
       summary: "☕ Random Coffee",
       start: {
-        dateTime: start.toISOString(),
+        dateTime: start,
         timeZone: "Europe/Moscow"
       },
       end: {
