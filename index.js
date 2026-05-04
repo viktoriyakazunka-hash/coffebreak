@@ -105,33 +105,40 @@ function makePairs(users, history) {
 }
 
 // ================= TIME =================
-function getRandomSlot() {
+function getFixedThursdaySlot() {
   const now = new Date();
 
-  const day = now.getDay();
-  const diffToMonday = (day + 6) % 7;
+  // текущее время в МСК
+  const moscowNow = new Date(
+    now.toLocaleString("en-US", { timeZone: "Europe/Moscow" })
+  );
 
-  const monday = new Date(now);
-  monday.setDate(now.getDate() - diffToMonday);
+  const day = moscowNow.getDay(); // 0 вс, 1 пн, ..., 4 чт
 
-  const offset = Math.floor(Math.random() * 5);
+  // считаем ближайший четверг
+  let diffToThursday = 4 - day;
 
-  const date = new Date(monday);
-  date.setDate(monday.getDate() + offset);
+  // если уже после четверга → берем следующий
+  if (diffToThursday < 0) diffToThursday += 7;
 
-  const hour = 11 + Math.floor(Math.random() * 7);
+  const thursday = new Date(moscowNow);
+  thursday.setDate(moscowNow.getDate() + diffToThursday);
 
-  date.setHours(hour, 0, 0, 0);
+  // ставим 15:00 МСК
+  thursday.setHours(15, 0, 0, 0);
 
-  const end = new Date(date.getTime() + 30 * 60000);
+  const end = new Date(thursday.getTime() + 30 * 60000);
 
-  return { start: date, end };
+  return {
+    start: thursday,
+    end
+  };
 }
 
 // ================= GOOGLE MEET =================
 async function createMeeting(emails) {
   try {
-    const { start, end } = getRandomSlot();
+    const { start, end } = getFixedThursdaySlot();
 
     const event = {
       summary: "☕ Random Coffee",
