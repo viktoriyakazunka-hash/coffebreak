@@ -125,7 +125,7 @@ function getFixedThursdaySlot() {
   thursday.setDate(moscowNow.getDate() + diffToThursday);
 
   // ставим 15:00 МСК
-  thursday.setHours(15, 0, 0, 0);
+  thursday.setHours(12, 0, 0, 0);
 
   const end = new Date(thursday.getTime() + 30 * 60000);
 
