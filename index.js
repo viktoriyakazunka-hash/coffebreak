@@ -140,25 +140,51 @@ function getFixedThursdaySlot() {
 // ================= GOOGLE MEET =================
 async function createMeeting(emails) {
   try {
-    const { start, end } = getFixedThursdaySlot();
+    const now = new Date();
+
+    // текущая дата в МСК
+    const moscow = new Date(
+      now.toLocaleString("en-US", { timeZone: "Europe/Moscow" })
+    );
+
+    const day = moscow.getDay();
+    let diff = 4 - day;
+    if (diff < 0) diff += 7;
+
+    const thursday = new Date(moscow);
+    thursday.setDate(moscow.getDate() + diff);
+
+    const year = thursday.getFullYear();
+    const month = String(thursday.getMonth() + 1).padStart(2, "0");
+    const date = String(thursday.getDate()).padStart(2, "0");
+
+    // 👇 фиксированное время
+    const startISO = `${year}-${month}-${date}T15:00:00+03:00`;
+    const endISO = `${year}-${month}-${date}T15:30:00+03:00`;
+
+    console.log("Creating meeting:", startISO);
 
     const event = {
       summary: "☕ Random Coffee",
+
       start: {
-        dateTime: start,
+        dateTime: startISO,
         timeZone: "Europe/Moscow"
       },
+
       end: {
-        dateTime: end.toISOString(),
+        dateTime: endISO,
         timeZone: "Europe/Moscow"
       },
+
       attendees: emails.map(e => ({ email: e })),
+
+      // 🔥 важно
       guestsCanModify: true,
-  guestsCanInviteOthers: false,
-  guestsCanSeeOtherGuests: true,
+
       conferenceData: {
         createRequest: {
-          requestId: `${Date.now()}-${Math.random()}`,
+          requestId: `${Date.now()}`,
           conferenceSolutionKey: { type: "hangoutsMeet" }
         }
       }
@@ -171,13 +197,15 @@ async function createMeeting(emails) {
       sendUpdates: "all"
     });
 
+    console.log("Meeting created:", res.data.hangoutLink);
+
     return {
       link: res.data.hangoutLink,
-      start
+      start: new Date(startISO)
     };
 
   } catch (e) {
-    console.error("Google error:", e.message);
+    console.error("❌ GOOGLE ERROR FULL:", JSON.stringify(e.response?.data || e.message, null, 2));
     return null;
   }
 }
